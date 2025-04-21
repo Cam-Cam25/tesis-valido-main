@@ -1,0 +1,1 @@
+"# testeo3"  initgit add README.mdgit commit -m "first commit"git branch -M maingit remote add origin https://github.com/Cam-Cam25/testeo3.gitgit push -u origin main
