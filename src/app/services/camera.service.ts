@@ -15,7 +15,7 @@ export class CameraService {
         resultType: CameraResultType.Base64,
         source: CameraSource.Camera,
         saveToGallery: false,
-        webUseInput: false,
+        webUseInput: true,
         promptLabelHeader: 'Cámara',
         promptLabelCancel: 'Cancelar',
         promptLabelPhoto: 'Tomar Foto',

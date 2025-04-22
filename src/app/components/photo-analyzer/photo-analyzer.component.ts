@@ -180,20 +180,23 @@ export class PhotoAnalyzerComponent {
     this.isCapturing = true;
     this.captureTimeLeft = 300;
 
-    this.captureInterval = setInterval(async () => {
-      if (this.captureTimeLeft <= 0) {
-        this.stopCapture();
-        return;
-      }
-
-      try {
-        this.imageBase64 = await this.cameraService.takePicture();
+    try {
+      this.imageBase64 = await this.cameraService.takePicture();
+      if (this.imageBase64) {
         await this.classifyWaste();
-        this.captureTimeLeft--;
-      } catch (error) {
-        console.error('Error al capturar:', error);
+        this.captureInterval = setInterval(async () => {
+          if (this.captureTimeLeft <= 0) {
+            this.stopCapture();
+            return;
+          }
+          this.captureTimeLeft--;
+        }, 1000);
       }
-    }, 1000); // Captura cada segundo
+    } catch (error) {
+      console.error('Error al capturar:', error);
+      this.error = 'Error al acceder a la cámara. Por favor, verifica los permisos.';
+      this.stopCapture();
+    }
   }
 
   stopCapture() {
