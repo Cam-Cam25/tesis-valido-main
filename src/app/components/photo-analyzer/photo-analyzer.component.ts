@@ -21,12 +21,12 @@ import { ProximityService } from '../../../app/services/proximity.service';
           (click)="takePicture()" 
           class="btn primary" 
           [disabled]="!isInRange || analyzing">
-          {{ isCapturing ? 'Detener Captura (' + captureTimeLeft + 's)' : 'Iniciar Captura' }}
+          {{ isCapturing ? 'Detener Cámara' : 'Iniciar Cámara' }}
         </button>
       </div>
 
-      <div *ngIf="imageBase64" class="preview">
-        <img [src]="'data:image/jpeg;base64,' + imageBase64" alt="Preview" />
+      <div class="preview">
+        <!-- El video se insertará aquí dinámicamente -->
       </div>
 
       <div *ngIf="classification" class="classification">
@@ -104,7 +104,22 @@ import { ProximityService } from '../../../app/services/proximity.service';
 
     .preview {
       margin: 20px auto;
-      max-width: 400px;
+      max-width: 640px;
+      width: 100%;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      background-color: #f8f9fa;
+      border-radius: 12px;
+      overflow: hidden;
+      box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+    }
+
+    .preview video {
+      width: 100%;
+      height: auto;
+      display: block;
+      object-fit: cover;
     }
 
     .preview img {
@@ -147,7 +162,7 @@ export class PhotoAnalyzerComponent {
   classification: string | undefined;
   analyzing = false;
   isInRange = false;
-  proximityMessage = 'Acerque el residuo entre 5-10 cm de la cámara';
+  proximityMessage = 'Acerque el residuo a 36 cm de la cámara';
   error: string | undefined;
   isCapturing = false;
   captureInterval: any;
@@ -163,10 +178,11 @@ export class PhotoAnalyzerComponent {
 
   private startProximityDetection() {
     this.proximityService.startDetection().subscribe((distance: number) => {
-      this.isInRange = distance >= 5 && distance <= 10;
+      // Validar si la distancia está en el rango de 36 cm con un margen de ±2 cm
+      this.isInRange = distance >= 34 && distance <= 38;
       this.proximityMessage = this.isInRange
         ? 'Distancia correcta - Listo para capturar'
-        : 'Acerque el residuo entre 5-10 cm de la cámara';
+        : 'Acerque el residuo a 36 cm de la cámara';
     });
   }
 
@@ -181,8 +197,13 @@ export class PhotoAnalyzerComponent {
     this.captureTimeLeft = 300;
 
     try {
-      this.imageBase64 = await this.cameraService.takePicture();
-      
+      const videoElement = await this.cameraService.startVideoStream();
+      const previewDiv = document.querySelector('.preview');
+      if (previewDiv) {
+        previewDiv.innerHTML = '';
+        previewDiv.appendChild(videoElement);
+      }
+
       this.captureInterval = setInterval(async () => {
         if (this.captureTimeLeft <= 0) {
           this.stopCapture();
@@ -190,9 +211,16 @@ export class PhotoAnalyzerComponent {
         }
 
         try {
-          this.imageBase64 = await this.cameraService.takePicture();
-          await this.classifyWaste();
-          this.captureTimeLeft--;
+          const canvas = document.createElement('canvas');
+          canvas.width = videoElement.videoWidth;
+          canvas.height = videoElement.videoHeight;
+          const ctx = canvas.getContext('2d');
+          if (ctx) {
+            ctx.drawImage(videoElement, 0, 0);
+            this.imageBase64 = canvas.toDataURL('image/jpeg').split(',')[1];
+            await this.classifyWaste();
+            this.captureTimeLeft--;
+          }
         } catch (error: any) {
           console.error('Error durante la captura automática:', error);
           this.stopCapture();
@@ -206,25 +234,36 @@ export class PhotoAnalyzerComponent {
     }
   }
 
-  stopCapture() {
+  private stopCapture() {
+    this.isCapturing = false;
     if (this.captureInterval) {
       clearInterval(this.captureInterval);
+      this.captureInterval = null;
     }
-    this.isCapturing = false;
-    this.captureTimeLeft = 300;
+    this.cameraService.stopVideoStream();
+    this.classification = undefined;
+    this.imageBase64 = undefined;
+    this.error = undefined;
   }
 
   private async classifyWaste() {
-    if (!this.imageBase64) return;
+    if (!this.imageBase64 || !this.isInRange) {
+      this.error = !this.isInRange ? 'Ajuste la distancia del residuo a 36 cm' : 'No hay imagen para analizar';
+      return;
+    }
 
+    this.analyzing = true;
+    this.error = undefined;
+    
     try {
-      this.analyzing = true;
-      const result = await this.geminiService.analyzeImage(this.imageBase64);
-      this.classification = result;
-      this.error = undefined;
-    } catch (error) {
-      this.error = 'Error al analizar la imagen. Por favor, intente de nuevo.';
-      console.error('Error al analizar:', error);
+      this.classification = await this.geminiService.analyzeImage(this.imageBase64);
+      if (this.classification && !['orgánico', 'inorgánico'].includes(this.classification.toLowerCase())) {
+        throw new Error('Clasificación no válida');
+      }
+    } catch (error: any) {
+      console.error('Error al clasificar el residuo:', error);
+      this.error = error.message || 'Error al clasificar el residuo';
+      this.classification = undefined;
     } finally {
       this.analyzing = false;
     }

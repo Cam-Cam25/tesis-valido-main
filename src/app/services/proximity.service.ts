@@ -50,8 +50,8 @@ export class ProximityService {
   private simulateProximitySensor(): Observable<number> {
     return interval(this.POLL_INTERVAL).pipe(
       map(() => {
-        // Simula una distancia entre 3 y 15 cm
-        return Math.floor(Math.random() * (15 - 3 + 1)) + 3;
+        // Simular una distancia aleatoria entre 30 y 42 cm
+        return Math.floor(Math.random() * (42 - 30 + 1)) + 30;
       })
     );
   }

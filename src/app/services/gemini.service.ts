@@ -17,7 +17,7 @@ export class GeminiService {
 
   async analyzeImage(base64Image: string) {
     try {
-      const prompt = 'Analiza esta imagen y clasifica el material que aparece. Si es plástico o vidrio, responde "inorgánico". Si es cualquier tipo de material orgánico (restos de comida, papel, cartón, hojas, etc.), responde "orgánico". Proporciona SOLO UNA de estas dos palabras como respuesta: "orgánico" o "inorgánico". No incluyas explicaciones adicionales.';
+      const prompt = 'Clasifica el residuo que aparece en la imagen. Responde ÚNICAMENTE con la palabra "orgánico" si es un residuo biodegradable (restos de comida, papel, cartón, hojas, etc.) o "inorgánico" si es un residuo no biodegradable (plástico, vidrio, metal, etc.). IMPORTANTE: Tu respuesta debe ser EXACTAMENTE una de estas dos palabras, sin espacios adicionales, signos de puntuación o explicaciones.';
       
       const imageParts = [
         {
@@ -30,7 +30,13 @@ export class GeminiService {
 
       const result = await this.model.generateContent([prompt, ...imageParts]);
       const response = await result.response;
-      return response.text();
+      const classification = response.text().trim().toLowerCase();
+      
+      if (!['orgánico', 'inorgánico'].includes(classification)) {
+        throw new Error('Clasificación no válida');
+      }
+      
+      return classification;
     } catch (error) {
       console.error('Error al analizar la imagen:', error);
       throw error;
